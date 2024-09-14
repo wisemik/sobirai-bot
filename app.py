@@ -13,6 +13,7 @@ from aiogram.filters.command import Command
 from aiogram import F
 from aiogram.types import FSInputFile
 from config import Config
+from pathlib import Path
 
 session = AiohttpSession(
     api=TelegramAPIServer.from_base(Config.TELEGRAM_BASE_URL)
@@ -45,7 +46,45 @@ async def help_command(message: types.Message):
 
 @dp.message(F.text)
 async def get_text(message: types.Message):
-    await message.reply(BOT_HI_MESSAGE)
+    # await message.reply(BOT_HI_MESSAGE)
+    await process_text(message)
+
+
+async def process_text(message: types.Message):
+    print(f"Processing text: {message.text}")
+    mess = await message.reply("✍️ Создаётся summary текста...")
+    try:
+        summarized_text = summarize_text(message.text)
+        print(f"Summarized text: {summarized_text}")
+        await message.reply(summarized_text)
+        await mess.delete()
+
+        print("Creating audio...")
+        mess = await message.reply("🎵 Создаётся аудио-подкаст...")
+        await message.reply_audio(audio=generate_audio(summarized_text))
+        await mess.delete()
+
+        return summarized_text
+    except Exception as e:
+        print(f"Error during summary creation: {e}")
+        await mess.edit_text(f"❌ Ошибка: {e}")
+
+
+def generate_audio(text: str) -> FSInputFile:
+    print(f"Generating audio for text: {text}")
+    speech_file_path = Path(__file__).parent / "speech.mp3"
+    print(f"Speech file path: {speech_file_path}")
+    response = client.audio.speech.create(
+        model="tts-1",
+        voice="alloy",
+        input=text
+    )
+    print(f"Audio generation response: {response}")
+
+    response.stream_to_file(speech_file_path)
+    print(f"Audio streamed to file: {speech_file_path}")
+    voice = FSInputFile(speech_file_path)
+    return voice
 
 
 def summarize_text(text: str) -> str:
